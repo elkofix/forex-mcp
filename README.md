@@ -27,11 +27,7 @@ Agente de IA experto en asesoramiento financiero y mercados con interfaz de chat
 
 ## Inicio rápido
 
-**1. Copiar y editar el archivo de entorno:**
-
-```bash
-cp .env.example .env
-```
+**1. Editar el archivo de entorno `.env` existente:**
 
 Editar `.env` con el proveedor LLM elegido:
 
@@ -99,7 +95,6 @@ http://localhost:8000
 aws-cert-agent/
 ├── docker-compose.yml
 ├── .env                        # Variables de entorno (no en git)
-├── .env.example                # Plantilla
 ├── clickhouse/
 │   └── config.xml              # ClickHouse Keeper integrado (requerido por Langfuse v3)
 └── agent/
@@ -128,6 +123,89 @@ docker compose restart agent
 ```
 
 El mensaje de bienvenida del chat indica el proveedor activo.
+
+## Integracion MCP de Polygon
+
+Se incorpora una integracion formal para consumir datos de mercado mediante el servidor MCP oficial de Polygon, ejecutado localmente por STDIO y conectable desde clientes como Claude Desktop o Cursor.
+
+Nota de compatibilidad: el repositorio oficial mantiene compatibilidad con `POLYGON_API_KEY`, pero actualmente el servidor se distribuye como `mcp_massive` (Python).
+
+### Objetivo
+
+Esta integracion habilita consultas de mercado en tiempo real e historicas (acciones, forex, crypto, noticias e indicadores) desde prompts de lenguaje natural, delegando la obtencion de datos al servidor MCP de Polygon.
+
+### Requisitos
+
+- API key valida de Polygon
+- Node.js 18+ (solo para variantes Node)
+- Python 3.12+ y `uv` (ruta recomendada del repo oficial actual)
+- Un cliente MCP (Claude Desktop, Cursor u otro compatible)
+
+### Preparacion automatizada (Windows PowerShell)
+
+El repositorio incluye un script de preparacion:
+
+```powershell
+./scripts/setup_polygon_mcp.ps1
+```
+
+El script:
+- clona o actualiza el repositorio oficial en `./mcp_polygon`
+- detecta automaticamente si el servidor MCP es Node o Python
+- instala dependencias segun el tipo detectado (`npm`/`pnpm`, o `uv`/`pip`)
+
+### Ejecucion local del servidor MCP
+
+Con el proyecto ya preparado:
+
+```powershell
+$env:POLYGON_API_KEY="tu_api_key"
+./scripts/run_polygon_mcp.ps1
+```
+
+Nota: el servidor MCP en STDIO debe ejecutarse como proceso hijo del cliente MCP. El script de ejecucion se provee para validacion local y depuracion.
+
+El script `run_polygon_mcp.ps1` soporta dos escenarios:
+- `dist/index.js` (repos Node)
+- `pyproject.toml` con `mcp_massive` (repos Python actuales)
+
+### Configuracion de Cursor
+
+Se incluye plantilla en `.cursor/mcp.json.example`. Para uso local:
+
+1. copiar `.cursor/mcp.json.example` a `.cursor/mcp.json`
+2. reemplazar `tu_api_key` por la clave real
+3. ajustar la ruta de `dist/index.js` si se utiliza una ubicacion distinta
+
+### Configuracion de Claude Desktop (Windows)
+
+Usar la estructura documentada en `docs/mcp/polygon.md` y registrar el servidor en:
+
+```txt
+%APPDATA%\Claude\claude_desktop_config.json
+```
+
+### Variables de entorno
+
+- `POLYGON_API_KEY`: credencial de acceso a Polygon
+- `MASSIVE_API_KEY`: variable principal usada por versiones actuales de `mcp_massive` (recomendado definir ambas con el mismo valor)
+- `POLYGON_MCP_PATH`: ruta local del repositorio `mcp_polygon`
+
+### Integracion directa en el agente LangChain
+
+El agente de `agent/agent/graph.py` ya integra MCP por STDIO y expone herramientas del servidor al modelo (con fallback automatico al modo LCEL base si MCP no inicia).
+
+Variables recomendadas en `.env`:
+
+```env
+MCP_ENABLED=true
+MCP_SERVER_COMMAND=mcp_massive
+MCP_SERVER_ARGS=
+POLYGON_API_KEY=tu_api_key
+MASSIVE_API_KEY=tu_api_key
+```
+
+Con esto, al iniciar Chainlit, el agente intentara levantar el proceso MCP y utilizar tools de mercado durante la inferencia.
 
 ## RAG — Implementado (pgvector)
 

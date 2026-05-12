@@ -9,6 +9,7 @@ graph = build_graph()
 
 @cl.on_chat_start
 async def on_chat_start():
+    await graph.initialize()
     cl.user_session.set("history", [])
     provider = os.getenv("LLM_PROVIDER", "openai").upper()
     await cl.Message(
@@ -39,21 +40,16 @@ async def on_message(message: cl.Message):
     response_message = cl.Message(content="")
     await response_message.send()
 
-    full_response = ""
-
-    async for chunk in graph.astream(
-        {"question": message.content, "history": history},
+    full_response = await graph.answer(
+        question=message.content,
+        history=history,
         config={"callbacks": [langfuse_handler]},
-    ):
-        # En la versión pura de LangChain (LCEL) enviamos un string stream (o un chunk)
-        # por lo que no es necesario el chequeo ["llm"]["answer"]
-        if isinstance(chunk, str):
-            await response_message.stream_token(chunk)
-            full_response += chunk
-        elif hasattr(chunk, "content"):
-            # A veces langchain retorna Message chunks
-            await response_message.stream_token(chunk.content)
-            full_response += chunk.content
+    )
+
+    # El modo con tools MCP no stream-ea token por token. Se envía por segmentos cortos.
+    for token in full_response.split(" "):
+        if token:
+            await response_message.stream_token(token + " ")
 
     await response_message.update()
 

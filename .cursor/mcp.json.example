@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "polygon": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "./mcp_polygon",
+        "run",
+        "mcp_massive"
+      ],
+      "env": {
+        "POLYGON_API_KEY": "tu_api_key",
+        "MASSIVE_API_KEY": "tu_api_key"
+      }
+    }
+  }
+}

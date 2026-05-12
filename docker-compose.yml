@@ -154,8 +154,13 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      PYTHONPATH: /opt/mcp_polygon/src
+      MCP_SERVER_COMMAND: python
+      MCP_SERVER_ARGS: -m mcp_massive
     volumes:
       - ./agent:/app
+      - ./mcp_polygon:/opt/mcp_polygon
 
 volumes:
   pgdata-rag:
