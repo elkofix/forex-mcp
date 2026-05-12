@@ -14,7 +14,7 @@ Agente de IA experto en asesoramiento financiero y mercados con interfaz de chat
 |---|---|
 | Chat UI | Chainlit 1.3.2 |
 | Motor del agente | LangGraph 0.2.39 |
-| LLM (OpenAI) | gpt-4o-mini via langchain-openai |
+| LLM (Google) | gemini-2.5-flash via langchain-google-genai |
 | LLM (Groq) | llama-3.3-70b-versatile via langchain-groq |
 | Observabilidad | Langfuse v3 |
 | RAG (pendiente) | pgvector + PostgreSQL 16 |
@@ -23,7 +23,7 @@ Agente de IA experto en asesoramiento financiero y mercados con interfaz de chat
 ## Requisitos
 
 - Docker y Docker Compose
-- Una API key de OpenAI **o** Groq (gratuito)
+- Una API key de Google (Gemini) **o** Groq (gratuito)
 
 ## Inicio rápido
 
@@ -36,11 +36,11 @@ cp .env.example .env
 Editar `.env` con el proveedor LLM elegido:
 
 ```env
-# Opción A — OpenAI
-LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-...
+# Opción A — Google (Gemini)
+LLM_PROVIDER=google
+GOOGLE_API_KEY=AIzaSy...
 
-# Opción B — Groq (gratuito, obtener key en console.groq.com)
+# Opción B — Groq (gratuito)
 LLM_PROVIDER=groq
 GROQ_API_KEY=gsk_...
 ```
@@ -161,7 +161,7 @@ docker compose exec agent python ingest/ingest.py --reset
 - `RAG_K` (default: `5`) — cantidad de chunks recuperados por pregunta.
 - `EMBEDDING_MODEL` (default: `text-embedding-3-small`).
 
-Nota: **los embeddings del RAG usan OpenAI**, así que aunque uses `LLM_PROVIDER=groq`, para la ingesta/búsqueda necesitas `OPENAI_API_KEY`.
+Nota: **los embeddings del RAG usan Google (Gemini)**, así que aunque uses `LLM_PROVIDER=groq`, para la ingesta/búsqueda necesitas una `GOOGLE_API_KEY`.
 
 ## Comandos útiles
 
