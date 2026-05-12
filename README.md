@@ -1,12 +1,12 @@
-# AWS Cert Agent
+# Asesor Financiero AI
 
-Agente de IA experto en certificaciones AWS con interfaz de chat, observabilidad completa y soporte multi-proveedor LLM. Todo corre en Docker Compose.
+Agente de IA experto en asesoramiento financiero y mercados con interfaz de chat, observabilidad completa y soporte multi-proveedor LLM. Todo corre en Docker Compose.
 
-## Certificaciones cubiertas
+## Funcionalidades principales
 
-- **Cloud Practitioner (CLF-C02)** — Fundamentos de la nube, servicios principales, facturación
-- **Security Specialty (SCS-C02)** — IAM avanzado, detección de amenazas, KMS, cumplimiento
-- **Machine Learning Specialty (MLS-C01)** — SageMaker, feature engineering, MLOps en AWS
+- **Asesoramiento Financiero** — Análisis de mercados, finanzas personales y gestión de riesgos.
+- **Forex y Trading** — Integración potencial con noticias de mercado (ej. FXStreet) y cotizaciones.
+- **Análisis de Datos** — Evaluación técnica y de sentimiento para estrategias de inversión.
 
 ## Stack
 
