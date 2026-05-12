@@ -63,8 +63,8 @@ docker compose logs -f langfuse-web
 Abrir http://localhost:3000 y seguir estos pasos en orden:
 
 1. Hacer clic en **Sign up** e ingresar cualquier email y contraseña (es local, no se valida)
-2. En la pantalla **Create organization**, escribir un nombre (ej. `aws-agent-org`) y confirmar
-3. En la pantalla **Create project**, escribir un nombre (ej. `aws-cert-agent`) y confirmar
+2. En la pantalla **Create organization**, escribir un nombre (ej. `asesor-finance-org`) y confirmar
+3. En la pantalla **Create project**, escribir un nombre (ej. `asesor-agent`) y confirmar
 4. En el panel del proyecto, ir a **Settings** (menú lateral izquierdo, abajo)
 5. Ir a la sección **API Keys** y hacer clic en **Create new API key**
 6. Copiar el **Public Key** (`pk-lf-...`) y el **Secret Key** (`sk-lf-...`)
@@ -96,7 +96,7 @@ http://localhost:8000
 ## Estructura del proyecto
 
 ```
-aws-cert-agent/
+asesor-financiero-ai/
 ├── docker-compose.yml
 ├── .env                        # Variables de entorno (no en git)
 ├── .env.example                # Plantilla
@@ -107,11 +107,11 @@ aws-cert-agent/
     ├── requirements.txt
     ├── app.py                  # Entry point Chainlit
     ├── agent/
-    │   ├── graph.py            # LangGraph — nodo LLM + soporte multi-proveedor
-    │   ├── retriever.py        # RAG con pgvector (pendiente)
-    │   └── prompts.py          # System prompt del agente AWS
+    │   ├── graph.py            # LangGraph — nodo LLM + herramientas (Forex/Finanzas)
+    │   ├── retriever.py        # RAG híbrido con LangChain y pgvector
+    │   └── prompts.py          # System prompt del Asesor Financiero
     └── ingest/
-        └── ingest.py           # Ingestión de documentos (pendiente)
+        └── ingest.py           # Ingestión de documentos financieros
 ```
 
 ## Cambiar proveedor LLM
@@ -134,17 +134,17 @@ El mensaje de bienvenida del chat indica el proveedor activo.
 El RAG ya está implementado con **PostgreSQL + pgvector**. Flujo:
 1) pones tus documentos en `agent/docs/` → 2) corres la ingesta → 3) el agente recupera chunks y los inyecta como contexto.
 
-### 1) ¿Dónde pongo mis 3 documentos?
+### 1) ¿Dónde pongo mis documentos?
 
-Colócalos dentro de `agent/docs/` en la carpeta que corresponda a la certificación:
+Colócalos dentro de `agent/docs/` en la carpeta que corresponda (por ejemplo, documentos sobre finanzas, Forex o Criptomonedas):
 
 ```
-agent/docs/cloud-practitioner/
-agent/docs/security-specialty/
-agent/docs/ml-specialty/
+agent/docs/crypto/
+agent/docs/forex/
+agent/docs/finanzas_personales/
 ```
 
-Se soportan `.pdf`, `.txt` y `.md`.
+Se soportan `.pdf`, `.txt` y `.md` usando los document loaders de LangChain.
 
 ### 2) Ejecutar ingesta
 
