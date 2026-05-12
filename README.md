@@ -14,7 +14,7 @@ Agente de IA experto en asesoramiento financiero y mercados con interfaz de chat
 |---|---|
 | Chat UI | Chainlit 1.3.2 |
 | Motor del agente | LangGraph 0.2.39 |
-| LLM (OpenAI) | gpt-4o-mini via langchain-openai |
+| LLM (Google) | gemini-2.5-flash via langchain-google-genai |
 | LLM (Groq) | llama-3.3-70b-versatile via langchain-groq |
 | Observabilidad | Langfuse v3 |
 | RAG (pendiente) | pgvector + PostgreSQL 16 |
@@ -23,7 +23,7 @@ Agente de IA experto en asesoramiento financiero y mercados con interfaz de chat
 ## Requisitos
 
 - Docker y Docker Compose
-- Una API key de OpenAI **o** Groq (gratuito)
+- Una API key de Google (Gemini) **o** Groq (gratuito)
 
 ## Inicio rápido
 
@@ -32,11 +32,11 @@ Agente de IA experto en asesoramiento financiero y mercados con interfaz de chat
 Editar `.env` con el proveedor LLM elegido:
 
 ```env
-# Opción A — OpenAI
-LLM_PROVIDER=openai
-OPENAI_API_KEY=sk-...
+# Opción A — Google (Gemini)
+LLM_PROVIDER=google
+GOOGLE_API_KEY=AIzaSy...
 
-# Opción B — Groq (gratuito, obtener key en console.groq.com)
+# Opción B — Groq (gratuito)
 LLM_PROVIDER=groq
 GROQ_API_KEY=gsk_...
 ```
@@ -59,8 +59,8 @@ docker compose logs -f langfuse-web
 Abrir http://localhost:3000 y seguir estos pasos en orden:
 
 1. Hacer clic en **Sign up** e ingresar cualquier email y contraseña (es local, no se valida)
-2. En la pantalla **Create organization**, escribir un nombre (ej. `aws-agent-org`) y confirmar
-3. En la pantalla **Create project**, escribir un nombre (ej. `aws-cert-agent`) y confirmar
+2. En la pantalla **Create organization**, escribir un nombre (ej. `asesor-finance-org`) y confirmar
+3. En la pantalla **Create project**, escribir un nombre (ej. `asesor-agent`) y confirmar
 4. En el panel del proyecto, ir a **Settings** (menú lateral izquierdo, abajo)
 5. Ir a la sección **API Keys** y hacer clic en **Create new API key**
 6. Copiar el **Public Key** (`pk-lf-...`) y el **Secret Key** (`sk-lf-...`)
@@ -92,7 +92,7 @@ http://localhost:8000
 ## Estructura del proyecto
 
 ```
-aws-cert-agent/
+asesor-financiero-ai/
 ├── docker-compose.yml
 ├── .env                        # Variables de entorno (no en git)
 ├── clickhouse/
@@ -102,11 +102,11 @@ aws-cert-agent/
     ├── requirements.txt
     ├── app.py                  # Entry point Chainlit
     ├── agent/
-    │   ├── graph.py            # LangGraph — nodo LLM + soporte multi-proveedor
-    │   ├── retriever.py        # RAG con pgvector (pendiente)
-    │   └── prompts.py          # System prompt del agente AWS
+    │   ├── graph.py            # LangGraph — nodo LLM + herramientas (Forex/Finanzas)
+    │   ├── retriever.py        # RAG híbrido con LangChain y pgvector
+    │   └── prompts.py          # System prompt del Asesor Financiero
     └── ingest/
-        └── ingest.py           # Ingestión de documentos (pendiente)
+        └── ingest.py           # Ingestión de documentos financieros
 ```
 
 ## Cambiar proveedor LLM
@@ -212,17 +212,17 @@ Con esto, al iniciar Chainlit, el agente intentara levantar el proceso MCP y uti
 El RAG ya está implementado con **PostgreSQL + pgvector**. Flujo:
 1) pones tus documentos en `agent/docs/` → 2) corres la ingesta → 3) el agente recupera chunks y los inyecta como contexto.
 
-### 1) ¿Dónde pongo mis 3 documentos?
+### 1) ¿Dónde pongo mis documentos?
 
-Colócalos dentro de `agent/docs/` en la carpeta que corresponda a la certificación:
+Colócalos dentro de `agent/docs/` en la carpeta que corresponda (por ejemplo, documentos sobre finanzas, Forex o Criptomonedas):
 
 ```
-agent/docs/cloud-practitioner/
-agent/docs/security-specialty/
-agent/docs/ml-specialty/
+agent/docs/crypto/
+agent/docs/forex/
+agent/docs/finanzas_personales/
 ```
 
-Se soportan `.pdf`, `.txt` y `.md`.
+Se soportan `.pdf`, `.txt` y `.md` usando los document loaders de LangChain.
 
 ### 2) Ejecutar ingesta
 
@@ -239,7 +239,7 @@ docker compose exec agent python ingest/ingest.py --reset
 - `RAG_K` (default: `5`) — cantidad de chunks recuperados por pregunta.
 - `EMBEDDING_MODEL` (default: `text-embedding-3-small`).
 
-Nota: **los embeddings del RAG usan OpenAI**, así que aunque uses `LLM_PROVIDER=groq`, para la ingesta/búsqueda necesitas `OPENAI_API_KEY`.
+Nota: **los embeddings del RAG usan Google (Gemini)**, así que aunque uses `LLM_PROVIDER=groq`, para la ingesta/búsqueda necesitas una `GOOGLE_API_KEY`.
 
 ## Comandos útiles
 
