@@ -125,30 +125,17 @@ class MCPStdioClient:
         if not self._proc or not self._proc.stdin:
             raise RuntimeError("Proceso MCP no inicializado")
         body = json.dumps(payload, ensure_ascii=True).encode("utf-8")
-        header = f"Content-Length: {len(body)}\r\n\r\n".encode("ascii")
-        self._proc.stdin.write(header + body)
+        self._proc.stdin.write(body + b"\n")
         await self._proc.stdin.drain()
 
     async def _read_message(self) -> dict[str, Any]:
         if not self._proc or not self._proc.stdout:
             raise RuntimeError("Proceso MCP no inicializado")
 
-        content_length = None
-        while True:
-            line = await self._proc.stdout.readline()
-            if not line:
-                raise RuntimeError("Servidor MCP cerró stdout")
-            decoded = line.decode("ascii", errors="ignore").strip()
-            if decoded == "":
-                break
-            if decoded.lower().startswith("content-length:"):
-                content_length = int(decoded.split(":", 1)[1].strip())
-
-        if content_length is None:
-            raise RuntimeError("Mensaje MCP sin Content-Length")
-
-        body = await self._proc.stdout.readexactly(content_length)
-        return json.loads(body.decode("utf-8"))
+        line = await self._proc.stdout.readline()
+        if not line:
+            raise RuntimeError("Servidor MCP cerró stdout")
+        return json.loads(line.decode("utf-8"))
 
 
 def retrieve_context(inputs: dict) -> str:
