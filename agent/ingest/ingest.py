@@ -18,12 +18,12 @@ from typing import Iterable
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_core.documents import Document
-from langchain_openai import OpenAIEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores.pgvector import PGVector
 
 
 DEFAULT_DOCS_DIR = Path(os.getenv("DOCS_DIR", "/app/docs"))
-DEFAULT_COLLECTION_NAME = os.getenv("RAG_COLLECTION", "aws_certifications")
+DEFAULT_COLLECTION_NAME = os.getenv("RAG_COLLECTION", "financial_reports")
 
 
 def _env(name: str) -> str:
@@ -48,7 +48,7 @@ def _iter_files(root: Path) -> list[Path]:
 	return sorted(files)
 
 
-def _certification_from_path(docs_root: Path, file_path: Path) -> str:
+def _category_from_path(docs_root: Path, file_path: Path) -> str:
 	try:
 		rel = file_path.relative_to(docs_root)
 		if rel.parts:
@@ -67,11 +67,11 @@ def _load_one(docs_root: Path, file_path: Path) -> list[Document]:
 		loader = TextLoader(str(file_path), encoding="utf-8")
 		docs = loader.load()
 
-	certification = _certification_from_path(docs_root, file_path)
+	category = _category_from_path(docs_root, file_path)
 	for doc in docs:
 		doc.metadata = {
 			**(doc.metadata or {}),
-			"certification": certification,
+			"category": category,
 			"source": str(file_path),
 			"file_name": file_path.name,
 		}
@@ -86,7 +86,7 @@ def _load_all(docs_root: Path, files: Iterable[Path]) -> list[Document]:
 
 
 def main(argv: list[str] | None = None) -> int:
-	parser = argparse.ArgumentParser(description="Ingesta de documentos AWS a pgvector")
+	parser = argparse.ArgumentParser(description="Ingesta de reportes financieros a pgvector")
 	parser.add_argument("--docs", default=str(DEFAULT_DOCS_DIR), help="Directorio raíz de docs")
 	parser.add_argument(
 		"--collection",
@@ -102,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
 	parser.add_argument("--chunk-overlap", type=int, default=150)
 	parser.add_argument(
 		"--embedding-model",
-		default=os.getenv("EMBEDDING_MODEL", "text-embedding-3-small"),
+		default=os.getenv("EMBEDDING_MODEL", "models/text-embedding-004"),
 	)
 	args = parser.parse_args(argv)
 
@@ -110,9 +110,9 @@ def main(argv: list[str] | None = None) -> int:
 	if not docs_root.exists():
 		print(f"No existe el directorio de docs: {docs_root}")
 		print("Crea carpetas y agrega tus documentos, por ejemplo:")
-		print("  agent/docs/cloud-practitioner/")
-		print("  agent/docs/security-specialty/")
-		print("  agent/docs/ml-specialty/")
+		print("  agent/docs/annual-reports/")
+		print("  agent/docs/market-analysis/")
+		print("  agent/docs/investment-strategies/")
 		return 1
 
 	files = _iter_files(docs_root)
@@ -122,9 +122,8 @@ def main(argv: list[str] | None = None) -> int:
 
 	database_url = _env("DATABASE_URL")
 
-	# Embeddings: actualmente se usa OpenAI para embeddings.
-	# Aunque el LLM sea Groq, para RAG necesitas OPENAI_API_KEY.
-	_env("OPENAI_API_KEY")
+	# Embeddings: actualmente se usa Google para embeddings.
+	_env("GOOGLE_API_KEY")
 
 	print(f"Docs root: {docs_root}")
 	print(f"Archivos detectados: {len(files)}")
@@ -140,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
 	)
 	chunks = splitter.split_documents(raw_docs)
 
-	embeddings = OpenAIEmbeddings(model=args.embedding_model)
+	embeddings = GoogleGenerativeAIEmbeddings(model=args.embedding_model)
 	try:
 		vectorstore = PGVector(
 			connection_string=database_url,

@@ -13,12 +13,12 @@ async def on_chat_start():
     provider = os.getenv("LLM_PROVIDER", "openai").upper()
     await cl.Message(
         content=(
-            f"👋 ¡Hola! Soy tu asistente experto en certificaciones AWS. *(usando {provider})*\n\n"
+            f"👋 ¡Hola! Soy tu asistente experto Analista Financiero. *(usando {provider})*\n\n"
             "Puedo ayudarte con:\n"
-            "- ☁️ **Cloud Practitioner** (CLF-C02)\n"
-            "- 🔒 **Security Specialty** (SCS-C02)\n"
-            "- 🤖 **Machine Learning Specialty** (MLS-C01)\n\n"
-            "¿Qué quieres aprender hoy?"
+            "- 📈 **Análisis de Mercados** (Acciones, tendencias macroeconómicas)\n"
+            "- 📑 **Reportes Financieros** (Métricas corporativas, balances, 10-K)\n"
+            "- 💼 **Estrategia y Portafolio** (Diversificación, ETFs)\n\n"
+            "¿Qué datos o activos quieres analizar hoy?"
         )
     ).send()
 
@@ -45,10 +45,15 @@ async def on_message(message: cl.Message):
         {"question": message.content, "history": history},
         config={"callbacks": [langfuse_handler]},
     ):
-        if "llm" in chunk and chunk["llm"].get("answer"):
-            token = chunk["llm"]["answer"]
-            await response_message.stream_token(token)
-            full_response = chunk["llm"]["answer"]
+        # En la versión pura de LangChain (LCEL) enviamos un string stream (o un chunk)
+        # por lo que no es necesario el chequeo ["llm"]["answer"]
+        if isinstance(chunk, str):
+            await response_message.stream_token(chunk)
+            full_response += chunk
+        elif hasattr(chunk, "content"):
+            # A veces langchain retorna Message chunks
+            await response_message.stream_token(chunk.content)
+            full_response += chunk.content
 
     await response_message.update()
 

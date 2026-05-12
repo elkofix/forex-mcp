@@ -1,9 +1,9 @@
-# graph.py — LangGraph Agent
+# graph.py — Pure LangChain (LCEL)
 import os
-from typing import TypedDict, Optional
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_core.runnables import RunnableConfig
-from langgraph.graph import StateGraph, END
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
 from .prompts import SYSTEM_PROMPT
 
 
@@ -15,6 +15,12 @@ def _build_llm():
             model=os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
             temperature=0.2,
         )
+    elif provider == "google":
+        from langchain_google_genai import ChatGoogleGenerativeAI
+        return ChatGoogleGenerativeAI(
+            model=os.getenv("GOOGLE_MODEL", "gemini-1.5-pro"),
+            temperature=0.2,
+        )
     from langchain_openai import ChatOpenAI
     return ChatOpenAI(
         model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
@@ -23,76 +29,57 @@ def _build_llm():
     )
 
 
-# ── Estado del grafo ──────────────────────────────────────────
-class AgentState(TypedDict):
-    question: str
-    history: list
-    context: str
-    answer: str
-
-
-def retrieve(state: AgentState, config: Optional[RunnableConfig] = None) -> AgentState:
-    """Recupera contexto desde pgvector (si está disponible).
-
-    Nunca debe tumbar el chat: si hay un error (sin docs, sin DB, sin OPENAI_API_KEY),
-    devuelve `context` vacío y el agente responde sin RAG.
-    """
-
+def retrieve_context(inputs: dict) -> str:
+    """Recupera contexto desde pgvector (si está disponible)."""
     rag_enabled = os.getenv("RAG_ENABLED", "true").lower() in {"1", "true", "yes", "y"}
     if not rag_enabled:
-        return {**state, "context": ""}
+        return ""
 
     try:
         from .retriever import get_retriever
-
         retriever = get_retriever()
-        docs = retriever.invoke(state["question"], config=config)
+        docs = retriever.invoke(inputs["question"])
         context = "\n\n".join(
             [
-                f"[cert={d.metadata.get('certification','unknown')}]\n{d.page_content}"
+                f"[category={d.metadata.get('category','unknown')}]\n{d.page_content}"
                 for d in docs
                 if getattr(d, "page_content", None)
             ]
         )
-        return {**state, "context": context}
+        return context
     except Exception:
-        return {**state, "context": ""}
+        return ""
 
 
-# ── Nodo principal: llamada al LLM ───────────────────────────
-def call_llm(state: AgentState, config: RunnableConfig) -> AgentState:
-    llm = _build_llm()
-
-    messages = [SystemMessage(content=SYSTEM_PROMPT)]
-
-    if state.get("context"):
-        messages.append(
-            SystemMessage(
-                content=(
-                    "Contexto (RAG) de materiales de estudio. "
-                    "Úsalo solo si es relevante para responder.\n\n"
-                    f"{state['context']}"
-                )
-            )
-        )
-
-    for turn in state.get("history", []):
+def format_history(inputs: dict) -> list:
+    """Convierte el historial de diccionarios a objetos Message."""
+    messages = []
+    for turn in inputs.get("history", []):
         messages.append(HumanMessage(content=turn["human"]))
         messages.append(AIMessage(content=turn["ai"]))
-
-    messages.append(HumanMessage(content=state["question"]))
-
-    response = llm.invoke(messages, config=config)
-
-    return {**state, "answer": response.content}
+    return messages
 
 
-# ── Construcción del grafo ────────────────────────────────────
 def build_graph():
-    graph = StateGraph(AgentState)
-    graph.add_node("retrieve", retrieve)
-    graph.add_node("llm", call_llm)
-    graph.set_entry_point("retrieve")
-    graph.add_edge("retrieve", "llm")
-    graph.add_edge("llm", END)
-    return graph.compile()
+    """Construye y retorna una cadena LangChain (LCEL). 
+    Se mantiene el nombre 'build_graph' para no romper app.py"""
+    
+    llm = _build_llm()
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", SYSTEM_PROMPT + "\n\nContexto (RAG):\n{context}"),
+        MessagesPlaceholder(variable_name="chat_history"),
+        ("human", "{question}")
+    ])
+
+    chain = (
+        RunnablePassthrough.assign(
+            context=retrieve_context,
+            chat_history=format_history
+        )
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    return chain

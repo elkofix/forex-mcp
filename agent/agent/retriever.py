@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import os
-from langchain_openai import OpenAIEmbeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores.pgvector import PGVector
 
 
@@ -31,14 +31,13 @@ def get_vectorstore() -> PGVector:
     """Crea un vectorstore PGVector apuntando a postgres-rag."""
 
     connection_string = _env("DATABASE_URL")
-    collection_name = os.getenv("RAG_COLLECTION", "aws_certifications")
-    embedding_model = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+    collection_name = os.getenv("RAG_COLLECTION", "financial_reports")
+    embedding_model = os.getenv("EMBEDDING_MODEL", "models/text-embedding-004")
 
-    # Embeddings: actualmente se usa OpenAI para embeddings.
-    # Aunque el LLM sea Groq, para RAG necesitas OPENAI_API_KEY.
-    _env("OPENAI_API_KEY")
+    # Embeddings: actualmente se usa Google para embeddings.
+    _env("GOOGLE_API_KEY")
 
-    embeddings = OpenAIEmbeddings(model=embedding_model)
+    embeddings = GoogleGenerativeAIEmbeddings(model=embedding_model)
     return PGVector(
         connection_string=connection_string,
         embedding_function=embeddings,
