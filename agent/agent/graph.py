@@ -134,7 +134,14 @@ class MCPStdioClient:
 
         line = await self._proc.stdout.readline()
         if not line:
-            raise RuntimeError("Servidor MCP cerró stdout")
+            stderr_content = ""
+            if self._proc.stderr:
+                try:
+                    stderr_bytes = await asyncio.wait_for(self._proc.stderr.read(), timeout=1.0)
+                    stderr_content = stderr_bytes.decode("utf-8")
+                except Exception as e:
+                    stderr_content = f"(No se pudo leer stderr: {e})"
+            raise RuntimeError(f"Servidor MCP cerró stdout. Stderr:\n{stderr_content}")
         return json.loads(line.decode("utf-8"))
 
 
@@ -253,7 +260,10 @@ class FinancialAgent:
             tools = await self._build_mcp_tools(tools_info)
             if tools:
                 self.react_agent = create_react_agent(self.llm, tools)
-        except Exception:
+        except Exception as e:
+            import traceback
+            print(f"❌ Error al inicializar MCP Client: {e}", flush=True)
+            traceback.print_exc()
             self.react_agent = None
             self.mcp_client = None
 

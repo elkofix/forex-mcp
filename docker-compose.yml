@@ -146,7 +146,9 @@ services:
   # AGENTE — Chainlit + LangGraph
   # ══════════════════════════════════════════════
   agent:
-    build: ./agent
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
     ports:
       - "8000:8000"
     depends_on:
@@ -155,12 +157,10 @@ services:
     env_file:
       - .env
     environment:
-      PYTHONPATH: /opt/mcp_polygon/src
-      MCP_SERVER_COMMAND: python
-      MCP_SERVER_ARGS: -m mcp_massive
+      MCP_SERVER_COMMAND: /opt/mcp_venv/bin/mcp_massive
+      MCP_SERVER_ARGS: ""
     volumes:
       - ./agent:/app
-      - ./mcp_polygon:/opt/mcp_polygon
 
 volumes:
   pgdata-rag:

@@ -1,11 +1,16 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY agent/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Install MCP server in isolated virtualenv (avoids uvicorn conflict with chainlit)
+COPY mcp_polygon /opt/mcp_polygon
+RUN python -m venv /opt/mcp_venv && \
+    /opt/mcp_venv/bin/pip install --no-cache-dir /opt/mcp_polygon
+
+COPY agent/ .
 
 EXPOSE 8000
 
