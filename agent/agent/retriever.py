@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores.pgvector import PGVector
 
 
@@ -32,12 +33,18 @@ def get_vectorstore() -> PGVector:
 
     connection_string = _env("DATABASE_URL")
     collection_name = os.getenv("RAG_COLLECTION", "financial_reports")
-    embedding_model = os.getenv("EMBEDDING_MODEL", "models/gemini-embedding-2-preview")
+    embedding_provider = os.getenv("EMBEDDING_PROVIDER", "google").lower()
 
-    # Embeddings: actualmente se usa Google para embeddings.
-    _env("GOOGLE_API_KEY")
+    if embedding_provider == "openai":
+        _env("OPENAI_API_KEY")
+        embedding_model = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+        embeddings = OpenAIEmbeddings(model=embedding_model)
+    else:
+        # Google por defecto
+        _env("GOOGLE_API_KEY")
+        embedding_model = os.getenv("EMBEDDING_MODEL", "models/gemini-embedding-2-preview")
+        embeddings = GoogleGenerativeAIEmbeddings(model=embedding_model)
 
-    embeddings = GoogleGenerativeAIEmbeddings(model=embedding_model)
     return PGVector(
         connection_string=connection_string,
         embedding_function=embeddings,
@@ -46,11 +53,19 @@ def get_vectorstore() -> PGVector:
 
 
 def get_retriever(k: int | None = None):
-    """Retorna un retriever conectado a pgvector.
+    """Retorna un retriever conectado a pgvector con filtro de score threshold.
 
     Requiere que antes se haya corrido la ingesta en `agent/ingest/ingest.py`.
     """
 
     k_final = k or int(os.getenv("RAG_K", "5"))
+    threshold = float(os.getenv("RAG_SCORE_THRESHOLD", "0.65"))
     vectorstore = get_vectorstore()
-    return vectorstore.as_retriever(search_kwargs={"k": k_final})
+    return vectorstore.as_retriever(
+        search_type="similarity_score_threshold",
+        search_kwargs={
+            "score_threshold": threshold,
+            "k": k_final
+        }
+    )
+

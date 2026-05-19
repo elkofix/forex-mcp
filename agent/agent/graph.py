@@ -1,14 +1,15 @@
 import asyncio
 import json
 import os
-from typing import Any
-
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from typing import Any, TypedDict, Annotated, Sequence
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.tools import StructuredTool
-from langgraph.prebuilt import create_react_agent
+from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode
 from pydantic import BaseModel, Field, create_model
 
 from .prompts import SYSTEM_PROMPT
@@ -149,12 +150,15 @@ def retrieve_context(inputs: dict) -> str:
     """Recupera contexto desde pgvector (si está disponible)."""
     rag_enabled = os.getenv("RAG_ENABLED", "true").lower() in {"1", "true", "yes", "y"}
     if not rag_enabled:
+        print("DEBUG RAG: RAG está deshabilitado.", flush=True)
         return ""
 
     try:
         from .retriever import get_retriever
         retriever = get_retriever()
+        print(f"DEBUG RAG: Buscando en pgvector con la consulta: '{inputs['question']}'", flush=True)
         docs = retriever.invoke(inputs["question"])
+        print(f"DEBUG RAG: Se encontraron {len(docs)} documentos relevantes.", flush=True)
         context = "\n\n".join(
             [
                 f"[category={d.metadata.get('category','unknown')}]\n{d.page_content}"
@@ -163,8 +167,12 @@ def retrieve_context(inputs: dict) -> str:
             ]
         )
         return context
-    except Exception:
+    except Exception as e:
+        import traceback
+        print(f"❌ DEBUG RAG: Error al recuperar contexto RAG: {e}", flush=True)
+        traceback.print_exc()
         return ""
+
 
 
 def format_history(inputs: dict) -> list:
@@ -217,11 +225,17 @@ def _schema_to_model(tool_name: str, input_schema: dict[str, Any]) -> type[BaseM
     return create_model(model_name, **fields)
 
 
+class AgentState(TypedDict):
+    messages: Annotated[Sequence[BaseMessage], add_messages]
+    context: str
+
+
 class FinancialAgent:
-    """Agente financiero con fallback: LCEL base + herramientas MCP opcionales."""
+    """Agente financiero con RAG transparente y herramientas MCP opcionales."""
 
     def __init__(self) -> None:
         self.llm = _build_llm()
+        self.llm_with_tools = None
         self.base_chain = self._build_base_chain()
         self.react_agent = None
         self.mcp_client: MCPStdioClient | None = None
@@ -259,13 +273,66 @@ class FinancialAgent:
             tools_info = await self.mcp_client.list_tools()
             tools = await self._build_mcp_tools(tools_info)
             if tools:
-                self.react_agent = create_react_agent(self.llm, tools)
+                self.llm_with_tools = self.llm.bind_tools(tools)
+                
+                # Grafo de decisión personalizado
+                workflow = StateGraph(AgentState)
+                workflow.add_node("retrieve", self._retrieve_node)
+                workflow.add_node("agent", self._call_model_node)
+                workflow.add_node("tools", ToolNode(tools))
+
+                workflow.add_edge(START, "retrieve")
+                workflow.add_edge("retrieve", "agent")
+                workflow.add_conditional_edges(
+                    "agent",
+                    self._should_continue,
+                    {
+                        "tools": "tools",
+                        END: END,
+                    }
+                )
+                workflow.add_edge("tools", "agent")
+                self.react_agent = workflow.compile()
         except Exception as e:
             import traceback
             print(f"❌ Error al inicializar MCP Client: {e}", flush=True)
             traceback.print_exc()
             self.react_agent = None
             self.mcp_client = None
+
+    async def _retrieve_node(self, state: AgentState) -> dict[str, Any]:
+        last_human_msg = None
+        for msg in reversed(state["messages"]):
+            if isinstance(msg, HumanMessage):
+                last_human_msg = msg
+                break
+        question = last_human_msg.content if last_human_msg else ""
+        context = retrieve_context({"question": question})
+        return {"context": context}
+
+    async def _call_model_node(self, state: AgentState) -> dict[str, Any]:
+        import datetime
+        current_date = datetime.datetime.now().strftime("%B %d, %Y")
+        
+        context_str = state.get("context", "")
+        system_content = (
+            SYSTEM_PROMPT
+            + f"\n\nATENCIÓN: La fecha actual es {current_date}. Usa esta fecha como referencia para el día de hoy.\n\n"
+            + "\n\nContexto (RAG):\n"
+            + (context_str if context_str else "Sin contexto adicional.")
+            + "\n\nSi necesitas datos de mercado en tiempo real o historicos, usa herramientas MCP."
+        )
+        system_message = SystemMessage(content=system_content)
+        
+        model_messages = [system_message] + list(state["messages"])
+        response = await self.llm_with_tools.ainvoke(model_messages)
+        return {"messages": [response]}
+
+    def _should_continue(self, state: AgentState) -> str:
+        last_message = state["messages"][-1]
+        if last_message.tool_calls:
+            return "tools"
+        return END
 
     async def _build_mcp_tools(self, tools_info: list[dict[str, Any]]) -> list[StructuredTool]:
         built_tools: list[StructuredTool] = []
@@ -297,22 +364,9 @@ class FinancialAgent:
 
     async def answer(self, question: str, history: list[dict], config: dict | None = None) -> str:
         if self.react_agent:
-            import datetime
-            current_date = datetime.datetime.now().strftime("%B %d, %Y")
-            
             messages = format_history({"history": history}) + [HumanMessage(content=question)]
-            context = retrieve_context({"question": question})
-            system = SystemMessage(
-                content=(
-                    SYSTEM_PROMPT
-                    + f"\n\nATENCIÓN: La fecha actual es {current_date}. Usa esta fecha como referencia para el día de hoy.\n\n"
-                    + "\n\nContexto (RAG):\n"
-                    + (context if context else "Sin contexto adicional.")
-                    + "\n\nSi necesitas datos de mercado en tiempo real o historicos, usa herramientas MCP."
-                )
-            )
             result = await self.react_agent.ainvoke(
-                {"messages": [system] + messages},
+                {"messages": messages, "context": ""},
                 config=config,
             )
             out_messages = result.get("messages", []) if isinstance(result, dict) else []

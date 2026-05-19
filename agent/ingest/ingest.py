@@ -19,6 +19,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_core.documents import Document
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores.pgvector import PGVector
 
 
@@ -121,13 +122,21 @@ default="models/gemini-embedding-2-preview",	)
 
 	database_url = _env("DATABASE_URL")
 
-	# Embeddings: actualmente se usa Google para embeddings.
-	_env("GOOGLE_API_KEY")
+	embedding_provider = os.getenv("EMBEDDING_PROVIDER", "google").lower()
+	if embedding_provider == "openai":
+		_env("OPENAI_API_KEY")
+		model_name = args.embedding_model if "gemini" not in args.embedding_model else "text-embedding-3-small"
+		embeddings = OpenAIEmbeddings(model=model_name)
+	else:
+		_env("GOOGLE_API_KEY")
+		model_name = args.embedding_model if "gemini" in args.embedding_model else "models/gemini-embedding-2-preview"
+		embeddings = GoogleGenerativeAIEmbeddings(model=model_name)
 
 	print(f"Docs root: {docs_root}")
 	print(f"Archivos detectados: {len(files)}")
 	print(f"Colección: {args.collection}")
 	print(f"Reset colección: {args.reset}")
+	print(f"Proveedor de Embeddings: {embedding_provider}")
 
 	raw_docs = _load_all(docs_root, files)
 
@@ -138,7 +147,6 @@ default="models/gemini-embedding-2-preview",	)
 	)
 	chunks = splitter.split_documents(raw_docs)
 
-	embeddings = GoogleGenerativeAIEmbeddings(model=args.embedding_model)
 	try:
 		vectorstore = PGVector(
 			connection_string=database_url,
