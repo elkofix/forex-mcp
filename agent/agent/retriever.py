@@ -32,7 +32,7 @@ def get_vectorstore() -> PGVector:
 
     connection_string = _env("DATABASE_URL")
     collection_name = os.getenv("RAG_COLLECTION", "financial_reports")
-    embedding_model = os.getenv("EMBEDDING_MODEL", "models/text-embedding-004")
+    embedding_model = os.getenv("EMBEDDING_MODEL", "models/gemini-embedding-2-preview")
 
     # Embeddings: actualmente se usa Google para embeddings.
     _env("GOOGLE_API_KEY")

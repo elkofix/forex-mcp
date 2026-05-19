@@ -102,8 +102,7 @@ def main(argv: list[str] | None = None) -> int:
 	parser.add_argument("--chunk-overlap", type=int, default=150)
 	parser.add_argument(
 		"--embedding-model",
-		default=os.getenv("EMBEDDING_MODEL", "models/text-embedding-004"),
-	)
+default="models/gemini-embedding-2-preview",	)
 	args = parser.parse_args(argv)
 
 	docs_root = Path(args.docs)

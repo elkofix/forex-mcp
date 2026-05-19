@@ -287,11 +287,15 @@ class FinancialAgent:
 
     async def answer(self, question: str, history: list[dict], config: dict | None = None) -> str:
         if self.react_agent:
+            import datetime
+            current_date = datetime.datetime.now().strftime("%B %d, %Y")
+            
             messages = format_history({"history": history}) + [HumanMessage(content=question)]
             context = retrieve_context({"question": question})
             system = SystemMessage(
                 content=(
                     SYSTEM_PROMPT
+                    + f"\n\nATENCIÓN: La fecha actual es {current_date}. Usa esta fecha como referencia para el día de hoy.\n\n"
                     + "\n\nContexto (RAG):\n"
                     + (context if context else "Sin contexto adicional.")
                     + "\n\nSi necesitas datos de mercado en tiempo real o historicos, usa herramientas MCP."
