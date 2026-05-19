@@ -25,6 +25,77 @@ Agente de IA experto en asesoramiento financiero y mercados con interfaz de chat
 - Docker y Docker Compose
 - Una API key de Google (Gemini) **o** Groq (gratuito)
 
+## Diagrama de Arquitectura Detallada (Mermaid)
+
+El siguiente diagrama detalla los subgrupos lógicos, archivos físicos implicados y dependencias externas de la plataforma:
+
+```mermaid
+graph TD
+    subgraph UIApp["CapadeAplicacion_Chainlit"]
+        ChatUI["Interfaz de Chat (Navegador Web)"]
+        AppPy["agent/app.py (Punto de entrada de la App)"]
+    end
+
+    subgraph AgentSystem["SistemaOrquestadoryAgentes"]
+        GraphPy["agent/agent/graph.py (Clase FinancialAgent)"]
+        PromptsPy["agent/agent/prompts.py (Prompt del Sistema)"]
+        RetrieverPy["agent/agent/retriever.py (Retriever PGVector)"]
+    end
+
+    subgraph MCPIntegration["CapaModelContextProtocol"]
+        MCPClient["agent/agent/graph.py (MCPStdioClient)"]
+        MCPServer["mcp_polygon/src/mcp_massive/server.py (Ejecutable)"]
+    end
+
+    subgraph Infrastructure["InfraestructurayBasesdeDatos"]
+        Postgres["PostgreSQL con pgvector (Puerto 5432)"]
+    end
+
+    subgraph ExternalServices["ServiciosExternos_APIs"]
+        GeminiAPI["Google Gemini API (gemini-2.5-flash y gemini-embedding-2-preview)"]
+        PolygonAPI["Polygon.io API (Rutas de Mercado en Tiempo Real)"]
+        Langfuse["Servidor de Trazas Langfuse (Puerto 3000)"]
+    end
+
+    %% Flujos de Comunicacion Físicos
+    ChatUI -->|Peticion de usuario vía WebSockets| AppPy
+    AppPy -->|Llama método answer| GraphPy
+    
+    %% Relaciones en SistemaOrquestadoryAgentes
+    GraphPy -->|Lee configuración del prompt| PromptsPy
+    GraphPy -->|Llama retriever_context| RetrieverPy
+    RetrieverPy -->|Consulta de Embeddings Semánticos| Postgres
+    
+    %% Flujo de Embeddings de Gemini
+    RetrieverPy -->|Llama modelo gemini-embedding-2-preview| GeminiAPI
+    
+    %% Integracion de MCP
+    GraphPy -->|Instancia y arranca subproceso| MCPClient
+    MCPClient -->|Ejecuta /opt/mcp_venv/bin/mcp_massive| MCPServer
+    MCPClient -->|Comunicacion JSON-RPC stdio| MCPServer
+    
+    %% Comunicacion Externa y RAG
+    GraphPy -->|Intercambio de tokens y reasoning| GeminiAPI
+    MCPServer -->|Peticiones HTTPS de Mercado| PolygonAPI
+    
+    %% Observabilidad
+    GraphPy -.->|Envio asincrono de trazas de ejecucion| Langfuse
+    GeminiAPI -.->|Registro de consumos y latencias| Langfuse
+
+    %% Estilos de los Nodos (Colores planos profesionales)
+    style ChatUI fill:#e1f5fe,stroke:#03a9f4,stroke-width:2px
+    style AppPy fill:#e1f5fe,stroke:#03a9f4,stroke-width:2px
+    style GraphPy fill:#ede7f6,stroke:#673ab7,stroke-width:2px
+    style PromptsPy fill:#ede7f6,stroke:#673ab7,stroke-width:2px
+    style RetrieverPy fill:#ede7f6,stroke:#673ab7,stroke-width:2px
+    style MCPClient fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px
+    style MCPServer fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px
+    style Postgres fill:#fff3e0,stroke:#ff9800,stroke-width:2px
+    style GeminiAPI fill:#e8f5e9,stroke:#4caf50,stroke-width:2px
+    style PolygonAPI fill:#ffebee,stroke:#f44336,stroke-width:2px
+    style Langfuse fill:#eceff1,stroke:#607d8b,stroke-width:1px,stroke-dasharray: 5 5
+```
+
 ## Inicio rápido
 
 **1. Editar el archivo de entorno `.env` existente:**
